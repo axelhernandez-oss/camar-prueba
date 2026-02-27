@@ -3,90 +3,103 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cámara a Google Drive</title>
+    <title>ASISTENCIA HH</title>
     <style>
-        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f0f2f5; }
-        video { width: 90%; max-width: 500px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
-        canvas { display: none; }
-        button { margin-top: 20px; padding: 15px 30px; font-size: 18px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 50px; transition: 0.3s; }
-        button:active { transform: scale(0.95); }
-        #status { margin-top: 15px; color: #555; font-weight: bold; text-align: center; padding: 0 20px; }
+        body { font-family: sans-serif; text-align: center; background: #f0f2f5; padding: 20px; }
+        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); max-width: 400px; margin: auto; }
+        video { width: 100%; border-radius: 10px; background: #000; transform: scaleX(-1); margin-bottom: 10px; }
+        
+        /* BOTONES */
+        .btn { width: 100%; padding: 18px; border: none; border-radius: 12px; color: white; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 15px; display: block; }
+        .entrada { background: #28a745; border-bottom: 4px solid #1e7e34; }
+        .salida { background: #007bff; border-bottom: 4px solid #0056b3; }
+        .btn:active { transform: translateY(2px); border-bottom: none; }
+        
+        #status { margin-top: 20px; font-weight: bold; padding: 10px; border-radius: 5px; }
     </style>
 </head>
 <body>
 
-    <h2>Captura en Directo</h2>
-    <video id="video" autoplay playsinline></video>
-    <canvas id="canvas"></canvas>
+<div class="card">
+    <h2>CONTROL DE ASISTENCIA</h2>
+    <p>ID EMPLEADO: <b id="displayId">Cargando...</b></p>
     
-    <button id="snap">Tomar Foto y Guardar</button>
-    <p id="status">Esperando cámara...</p>
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas" style="display:none;"></canvas>
 
-    <script>
-        // --- CONFIGURACIÓN ---
-        // PEGA AQUÍ LA URL DE TU IMPLEMENTACIÓN DE GOOGLE APPS SCRIPT (LA QUE TERMINA EN /exec)
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwhBJX4vU8G3FiTBXR57ySCBOkzGuUMsDc8GrF223kySj5eHF5U73OFiB-mYsa7JqccIQ/exec"; 
-        // ---------------------
+    <button id="btnEntrada" class="btn entrada" onclick="enviarRegistro('ENTRADA')">REGISTRAR ENTRADA</button>
+    <button id="btnSalida" class="btn salida" onclick="enviarRegistro('SALIDA')">REGISTRAR SALIDA</button>
+    
+    <div id="status"></div>
+</div>
 
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const snap = document.getElementById('snap');
+<script>
+    // 1. TU URL DE GOOGLE APPS SCRIPT
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycby0xPIwIoBHs1SmGcPoXRLe7pLMTWJPHSu3y94mrYFkrNDxi2dEPrdH4Lc0BicJpHaMww/exec";
+
+    // 2. OBTENER ID DE LA URL
+    const params = new URLSearchParams(window.location.search);
+    const idEmpleado = params.get('id');
+    document.getElementById('displayId').innerText = idEmpleado || "ERROR: SIN ID";
+
+    // 3. INICIAR VIDEO
+    navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => { document.getElementById('video').srcObject = stream; })
+        .catch(err => { alert("Por favor activa la cámara"); });
+
+    // 4. FUNCIÓN DE ENVÍO
+    function enviarRegistro(tipo) {
+        const btnE = document.getElementById('btnEntrada');
+        const btnS = document.getElementById('btnSalida');
         const status = document.getElementById('status');
 
-        // Iniciar cámara
-        async function init() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: "environment" }, // Intenta usar cámara trasera
-                    audio: false 
-                });
-                video.srcObject = stream;
-                status.innerText = "Cámara lista";
-            } catch (e) {
-                status.innerText = "Error: " + e.message;
-                console.error(e);
-            }
-        }
+        // Bloquear botones
+        btnE.disabled = true;
+        btnS.disabled = true;
+        status.innerText = "⏳ ENVIANDO " + tipo + "...";
+        status.style.background = "#fff3cd";
 
-        // Capturar y enviar por POST
-        snap.addEventListener('click', async () => {
-            if (SCRIPT_URL === "TU_URL_DE_APPS_SCRIPT_AQUI") {
-                alert("Primero debes pegar tu URL de Apps Script en el código.");
-                return;
-            }
-
-            status.innerText = "Capturando imagen...";
-            const context = canvas.getContext('2d');
+        navigator.geolocation.getCurrentPosition(pos => {
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
-            context.drawImage(video, 0, 0);
+            canvas.getContext('2d').drawImage(video, 0, 0);
 
-            const dataUrl = canvas.toDataURL('image/png');
+            const datos = {
+                id: idEmpleado,
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+                foto: canvas.toDataURL('image/png'),
+                tipo: tipo // Aquí manda "ENTRADA" o "SALIDA"
+            };
 
-            status.innerText = "Enviando a Google Drive...";
+            fetch(WEB_APP_URL, {
+                method: "POST",
+                mode: "no-cors",
+                body: JSON.stringify(datos)
+            })
+            .then(() => {
+                status.innerText = "✅ " + tipo + " REGISTRADA";
+                status.style.background = "#d4edda";
+                status.style.color = "#155724";
+                // Ocultar botones después del éxito
+                btnE.style.display = "none";
+                btnS.style.display = "none";
+            })
+            .catch(err => {
+                status.innerText = "❌ ERROR DE CONEXIÓN";
+                btnE.disabled = false;
+                btnS.disabled = false;
+            });
 
-            try {
-                // Enviamos los datos mediante una petición POST (CORS)
-                const response = await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    mode: 'no-cors', // Importante para evitar bloqueos de CORS simples en Apps Script
-                    cache: 'no-cache',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ image: dataUrl })
-                });
-
-                // Nota: con 'no-cors' no podemos leer la respuesta JSON, 
-                // pero la foto llegará a Drive si la URL es correcta.
-                status.innerText = "¡Foto enviada! Revisa tu Google Drive.";
-                status.style.color = "green";
-                
-            } catch (error) {
-                status.innerText = "Error al conectar: " + error.message;
-                status.style.color = "red";
-            }
+        }, err => {
+            alert("Debes activar el GPS para registrar tu asistencia.");
+            btnE.disabled = false;
+            btnS.disabled = false;
         });
+    }
+</script>
 
-        init();
-    </script>
 </body>
 </html>

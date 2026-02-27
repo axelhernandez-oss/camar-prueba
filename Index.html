@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cámara a Google Drive</title>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f0f2f5; }
+        video { width: 90%; max-width: 500px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        canvas { display: none; }
+        button { margin-top: 20px; padding: 15px 30px; font-size: 18px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 50px; transition: 0.3s; }
+        button:active { transform: scale(0.95); }
+        #status { margin-top: 15px; color: #555; font-weight: bold; text-align: center; padding: 0 20px; }
+    </style>
+</head>
+<body>
+
+    <h2>Captura en Directo</h2>
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
+    
+    <button id="snap">Tomar Foto y Guardar</button>
+    <p id="status">Esperando cámara...</p>
+
+    <script>
+        // --- CONFIGURACIÓN ---
+        // PEGA AQUÍ LA URL DE TU IMPLEMENTACIÓN DE GOOGLE APPS SCRIPT (LA QUE TERMINA EN /exec)
+        const SCRIPT_URL = "https://script.google.com/u/0/home/projects/12X17413FNmYUfmSqK7JD7NAAJkQvco1d2eCsNrC6Uq124SoBSMqROqy-/edit"; 
+        // ---------------------
+
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const snap = document.getElementById('snap');
+        const status = document.getElementById('status');
+
+        // Iniciar cámara
+        async function init() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "environment" }, // Intenta usar cámara trasera
+                    audio: false 
+                });
+                video.srcObject = stream;
+                status.innerText = "Cámara lista";
+            } catch (e) {
+                status.innerText = "Error: " + e.message;
+                console.error(e);
+            }
+        }
+
+        // Capturar y enviar por POST
+        snap.addEventListener('click', async () => {
+            if (SCRIPT_URL === "TU_URL_DE_APPS_SCRIPT_AQUI") {
+                alert("Primero debes pegar tu URL de Apps Script en el código.");
+                return;
+            }
+
+            status.innerText = "Capturando imagen...";
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0);
+
+            const dataUrl = canvas.toDataURL('image/png');
+
+            status.innerText = "Enviando a Google Drive...";
+
+            try {
+                // Enviamos los datos mediante una petición POST (CORS)
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors', // Importante para evitar bloqueos de CORS simples en Apps Script
+                    cache: 'no-cache',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: dataUrl })
+                });
+
+                // Nota: con 'no-cors' no podemos leer la respuesta JSON, 
+                // pero la foto llegará a Drive si la URL es correcta.
+                status.innerText = "¡Foto enviada! Revisa tu Google Drive.";
+                status.style.color = "green";
+                
+            } catch (error) {
+                status.innerText = "Error al conectar: " + error.message;
+                status.style.color = "red";
+            }
+        });
+
+        init();
+    </script>
+</body>
+</html>

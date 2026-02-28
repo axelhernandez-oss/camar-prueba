@@ -3,61 +3,106 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ASISTENCIA HH</title>
+    <title>HH Asistencia - Registro</title>
     <style>
-        body { font-family: sans-serif; text-align: center; background: #f0f2f5; padding: 20px; }
-        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); max-width: 400px; margin: auto; }
-        video { width: 100%; border-radius: 10px; background: #000; transform: scaleX(-1); margin-bottom: 10px; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            text-align: center; 
+            background: #1a1a1a; 
+            color: white; 
+            padding: 20px; 
+            margin: 0;
+        }
+        .card { 
+            background: #2d2d2d; 
+            padding: 25px; 
+            border-radius: 20px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
+            max-width: 400px; 
+            margin: auto; 
+            border-top: 5px solid #00d4ff;
+        }
+        video { 
+            width: 100%; 
+            border-radius: 12px; 
+            background: #000; 
+            transform: scaleX(-1); 
+            margin-bottom: 15px;
+            border: 2px solid #444;
+        }
+        .btn { 
+            width: 100%; 
+            padding: 18px; 
+            border: none; 
+            border-radius: 12px; 
+            color: white; 
+            font-size: 18px; 
+            font-weight: bold; 
+            cursor: pointer; 
+            margin-top: 15px; 
+            transition: all 0.3s ease;
+        }
+        .entrada { background: #28a745; box-shadow: 0 4px #1e7e34; }
+        .entrada:active { transform: translateY(2px); box-shadow: none; }
         
-        /* BOTONES */
-        .btn { width: 100%; padding: 18px; border: none; border-radius: 12px; color: white; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 15px; display: block; }
-        .entrada { background: #28a745; border-bottom: 4px solid #1e7e34; }
-        .salida { background: #007bff; border-bottom: 4px solid #0056b3; }
-        .btn:active { transform: translateY(2px); border-bottom: none; }
+        .salida { background: #007bff; box-shadow: 0 4px #0056b3; }
+        .salida:active { transform: translateY(2px); box-shadow: none; }
         
-        #status { margin-top: 20px; font-weight: bold; padding: 10px; border-radius: 5px; }
+        .btn:disabled { background: #555 !important; box-shadow: none !important; cursor: not-allowed; }
+
+        #status { 
+            margin-top: 20px; 
+            font-weight: bold; 
+            font-size: 16px; 
+            padding: 15px;
+            border-radius: 10px;
+            display: none; /* Se activa al haber mensajes */
+        }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2>CONTROL DE ASISTENCIA</h2>
-    <p>ID EMPLEADO: <b id="displayId">Cargando...</b></p>
+    <h2 style="margin-top: 0;">REGISTRO HH</h2>
+    <p>ID EMPLEADO: <b id="displayId" style="color: #00d4ff;">Cargando...</b></p>
     
     <video id="video" autoplay playsinline></video>
     <canvas id="canvas" style="display:none;"></canvas>
-
-    <button id="btnEntrada" class="btn entrada" onclick="enviarRegistro('ENTRADA')">REGISTRAR ENTRADA</button>
-    <button id="btnSalida" class="btn salida" onclick="enviarRegistro('SALIDA')">REGISTRAR SALIDA</button>
+    
+    <button id="btnE" class="btn entrada" onclick="enviar('ENTRADA')">REGISTRAR ENTRADA</button>
+    <button id="btnS" class="btn salida" onclick="enviar('SALIDA')">REGISTRAR SALIDA</button>
     
     <div id="status"></div>
 </div>
 
 <script>
-    // 1. TU URL DE GOOGLE APPS SCRIPT
+    // 1. REEMPLAZA CON TU URL DE GOOGLE APPS SCRIPT
     const WEB_APP_URL = "https://script.google.com/macros/s/AKfycby0xPIwIoBHs1SmGcPoXRLe7pLMTWJPHSu3y94mrYFkrNDxi2dEPrdH4Lc0BicJpHaMww/exec";
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const id = urlParams.get('id');
+    document.getElementById('displayId').innerText = id || "SIN ID DETECTADO";
 
-    // 2. OBTENER ID DE LA URL
-    const params = new URLSearchParams(window.location.search);
-    const idEmpleado = params.get('id');
-    document.getElementById('displayId').innerText = idEmpleado || "ERROR: SIN ID";
-
-    // 3. INICIAR VIDEO
-    navigator.mediaDevices.getUserMedia({ video: true })
+    // 2. INICIAR CÁMARA
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
         .then(stream => { document.getElementById('video').srcObject = stream; })
-        .catch(err => { alert("Por favor activa la cámara"); });
+        .catch(err => {
+            mostrarMensaje("❌ Error: No se puede acceder a la cámara", "#ff4444");
+        });
 
-    // 4. FUNCIÓN DE ENVÍO
-    function enviarRegistro(tipo) {
-        const btnE = document.getElementById('btnEntrada');
-        const btnS = document.getElementById('btnSalida');
-        const status = document.getElementById('status');
+    // 3. FUNCIÓN DE ENVÍO
+    function enviar(tipo) {
+        const btnE = document.getElementById('btnE');
+        const btnS = document.getElementById('btnS');
+        
+        if (!id) {
+            mostrarMensaje("❌ Error: No se detectó ID de empleado", "#ff4444");
+            return;
+        }
 
-        // Bloquear botones
         btnE.disabled = true;
         btnS.disabled = true;
-        status.innerText = "⏳ ENVIANDO " + tipo + "...";
-        status.style.background = "#fff3cd";
+        mostrarMensaje("⏳ Validando con el servidor...", "#aaa");
 
         navigator.geolocation.getCurrentPosition(pos => {
             const video = document.getElementById('video');
@@ -66,38 +111,59 @@
             canvas.height = video.videoHeight;
             canvas.getContext('2d').drawImage(video, 0, 0);
 
-            const datos = {
-                id: idEmpleado,
+            const payload = {
+                id: id,
                 lat: pos.coords.latitude,
                 lng: pos.coords.longitude,
                 foto: canvas.toDataURL('image/png'),
-                tipo: tipo // Aquí manda "ENTRADA" o "SALIDA"
+                tipo: tipo
             };
 
             fetch(WEB_APP_URL, {
                 method: "POST",
-                mode: "no-cors",
-                body: JSON.stringify(datos)
+                body: JSON.stringify(payload)
             })
-            .then(() => {
-                status.innerText = "✅ " + tipo + " REGISTRADA";
-                status.style.background = "#d4edda";
-                status.style.color = "#155724";
-                // Ocultar botones después del éxito
-                btnE.style.display = "none";
-                btnS.style.display = "none";
+            .then(res => res.text()) // Recibimos la respuesta de texto del Apps Script
+            .then(texto => {
+                console.log("Servidor responde:", texto);
+
+                if (texto.includes("ID_NO_AUTORIZADO")) {
+                    mostrarMensaje("❌ TU ID NO ESTÁ REGISTRADO", "#ff4444");
+                    btnE.disabled = false; btnS.disabled = false;
+                } 
+                else if (texto.includes("YA_TIENE_ENTRADA")) {
+                    mostrarMensaje("⚠️ YA REGISTRASTE ENTRADA HOY", "#ffbb33");
+                } 
+                else if (texto.includes("YA_TIENE_SALIDA")) {
+                    mostrarMensaje("⚠️ YA REGISTRASTE SALIDA HOY", "#ffbb33");
+                } 
+                else if (texto.includes("OK")) {
+                    mostrarMensaje("✅ " + tipo + " REGISTRADA CON ÉXITO", "#00c851");
+                    btnE.style.display = "none";
+                    btnS.style.display = "none";
+                } 
+                else {
+                    mostrarMensaje("❌ Error: " + texto, "#ff4444");
+                    btnE.disabled = false; btnS.disabled = false;
+                }
             })
             .catch(err => {
-                status.innerText = "❌ ERROR DE CONEXIÓN";
-                btnE.disabled = false;
-                btnS.disabled = false;
+                mostrarMensaje("❌ Error de conexión", "#ff4444");
+                btnE.disabled = false; btnS.disabled = false;
             });
 
         }, err => {
-            alert("Debes activar el GPS para registrar tu asistencia.");
-            btnE.disabled = false;
-            btnS.disabled = false;
+            mostrarMensaje("❌ Error: Debes activar el GPS", "#ff4444");
+            btnE.disabled = false; btnS.disabled = false;
         });
+    }
+
+    function mostrarMensaje(msg, color) {
+        const status = document.getElementById('status');
+        status.style.display = "block";
+        status.innerText = msg;
+        status.style.color = color;
+        status.style.border = "1px solid " + color;
     }
 </script>
 

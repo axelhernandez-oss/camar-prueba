@@ -92,13 +92,80 @@
 
     // 3. FUNCIÓN DE ENVÍO
     function enviar(tipo) {
-        const btnE = document.getElementById('btnE');
-        const btnS = document.getElementById('btnS');
-        
-        if (!id) {
-            mostrarMensaje("❌ Error: No se detectó ID de empleado", "#ff4444");
-            return;
-        }
+    const btnE = document.getElementById('btnE');
+    const btnS = document.getElementById('btnS');
+    const status = document.getElementById('status');
+    
+    // Si no hay ID en el link, detenemos el proceso
+    if (!id || id === "SIN ID DETECTADO") {
+        mostrarMensaje("❌ ERROR: No se detectó ID de empleado en el enlace.", "#ff4444");
+        return;
+    }
+
+    // Bloqueamos botones para evitar múltiples clics
+    btnE.disabled = true;
+    btnS.disabled = true;
+    mostrarMensaje("⏳ Verificando registro...", "#aaa");
+
+    navigator.geolocation.getCurrentPosition(pos => {
+        const video = document.getElementById('video');
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+
+        const payload = {
+            id: id,
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            foto: canvas.toDataURL('image/png'),
+            tipo: tipo
+        };
+
+        // ENVIAR A GOOGLE
+        fetch(WEB_APP_URL, {
+            method: "POST",
+            mode: "cors", // Cambiado a cors para leer la respuesta del servidor
+            body: JSON.stringify(payload)
+        })
+        .then(res => res.text()) // Convertimos la respuesta a texto
+        .then(texto => {
+            const respuesta = texto.trim(); // Limpiamos espacios invisibles
+            console.log("Servidor respondió:", respuesta);
+
+            if (respuesta === "YA_TIENE_ENTRADA") {
+                mostrarMensaje("⚠️ YA REGISTRASTE TU ENTRADA HOY", "#ffbb33");
+                btnE.disabled = false; btnS.disabled = false;
+            } 
+            else if (respuesta === "YA_TIENE_SALIDA") {
+                mostrarMensaje("⚠️ YA REGISTRASTE TU SALIDA HOY", "#ffbb33");
+                btnE.disabled = false; btnS.disabled = false;
+            } 
+            else if (respuesta === "ID_NO_AUTORIZADO") {
+                mostrarMensaje("❌ TU ID NO ESTÁ REGISTRADO EN EL SISTEMA", "#ff4444");
+                btnE.disabled = false; btnS.disabled = false;
+            } 
+            else if (respuesta === "OK") {
+                mostrarMensaje("✅ " + tipo + " REGISTRADA CON ÉXITO", "#00c851");
+                // Ocultamos los botones para que no intenten marcar otra vez
+                btnE.style.display = "none";
+                btnS.style.display = "none";
+            } 
+            else {
+                mostrarMensaje("❌ Error del servidor: " + respuesta, "#ff4444");
+                btnE.disabled = false; btnS.disabled = false;
+            }
+        })
+        .catch(err => {
+            mostrarMensaje("❌ Error de red. Revisa tu conexión.", "#ff4444");
+            btnE.disabled = false; btnS.disabled = false;
+        });
+
+    }, err => {
+        mostrarMensaje("❌ Error: Debes activar el GPS para registrar asistencia.", "#ff4444");
+        btnE.disabled = false; btnS.disabled = false;
+    });
+}
 
         btnE.disabled = true;
         btnS.disabled = true;

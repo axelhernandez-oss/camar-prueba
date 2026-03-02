@@ -3,94 +3,142 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Registro de Asistencia - HH Transportes</title>
+    <title>Asistencia HH Transportes</title>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f4f4f4; }
-        .container { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 400px; margin: auto; }
-        video { width: 100%; border-radius: 8px; background: #000; }
-        button { width: 100%; padding: 15px; margin: 10px 0; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; color: white; }
-        .btn-entrada { background-color: #28a745; }
-        .btn-salida { background-color: #dc3545; }
-        button:disabled { background-color: #ccc; cursor: not-allowed; }
-        #status { margin-top: 15px; font-weight: bold; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; padding: 20px; background-color: #f0f2f5; color: #333; }
+        .container { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); max-width: 450px; margin: auto; }
+        h2 { color: #1a73e8; margin-bottom: 5px; }
+        #sede-tag { font-size: 14px; color: #666; margin-bottom: 20px; display: block; }
+        video { width: 100%; border-radius: 10px; background: #222; margin-bottom: 15px; transform: scaleX(-1); }
+        button { width: 100%; padding: 16px; margin: 8px 0; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; transition: 0.3s; }
+        .btn-entrada { background-color: #28a745; color: white; }
+        .btn-entrada:hover { background-color: #218838; }
+        .btn-salida { background-color: #dc3545; color: white; }
+        .btn-salida:hover { background-color: #c82333; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; opacity: 0.7; }
+        #status { margin-top: 20px; font-weight: bold; padding: 10px; border-radius: 5px; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h2>Asistencia</h2>
-        <p id="info-sede">Sede: <span id="sede-nombre">Cargando...</span></p>
-        <video id="video" autoplay playsinline></video>
-        <canvas id="canvas" style="display:none;"></canvas>
-        
-        <button id="btnE" class="btn-entrada" onclick="registrar('ENTRADA')">REGISTRAR ENTRADA</button>
-        <button id="btnS" class="btn-salida" onclick="registrar('SALIDA')">REGISTRAR SALIDA</button>
-        
-        <div id="status"></div>
-    </div>
 
-    <script>
-        const urlParams = new URLSearchParams(window.location.search);
-        const idEmpleado = urlParams.get('id');
-        const sedeUrl = urlParams.get('sede'); // Ejemplo: ?id=9923&sede=Manzanillo
-        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycby0xPIwIoBHs1SmGcPoXRLe7pLMTWJPHSu3y94mrYFkrNDxi2dEPrdH4Lc0BicJpHaMww/exec";
+<div class="container">
+    <h2>Registro de Asistencia</h2>
+    <span id="sede-tag">Detectando sede...</span>
+    
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas" style="display:none;"></canvas>
+    
+    <button id="btnE" class="btn-entrada" onclick="procesar('ENTRADA')">REGISTRAR ENTRADA</button>
+    <button id="btnS" class="btn-salida" onclick="procesar('SALIDA')">REGISTRAR SALIDA</button>
+    
+    <div id="status"></div>
+</div>
 
-        document.getElementById('sede-nombre').innerText = sedeUrl || "No especificada";
+<script>
+    // 1. CONFIGURACIÓN DE SEDES (Actualiza aquí tus coordenadas de Google Maps)
+    const CONFIG_SEDES = {
+        "Manzanillo": { lat: 19.0522, lng: -104.3159, nombre: "Puerto Manzanillo" },
+        "Colima":     { lat: 19.2433, lng: -103.7250, nombre: "Oficina Colima" },
+        "Guadalajara": { lat: 20.6595, lng: -103.3494, nombre: "Sede GDL" },
+        "Veracruz":    { lat: 19.1738, lng: -96.1342, nombre: "Puerto Veracruz" }
+        // Agrega más aquí siguiendo el mismo formato
+    };
 
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const status = document.getElementById('status');
+    const RADIO_PERMITIDO = 300; // Metros a la redonda permitidos
+    const WEB_APP_URL = "TU_URL_DE_GOOGLE_APPS_SCRIPT"; // Pega aquí tu URL de implementación
 
-        // Iniciar cámara
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
-            .then(stream => video.srcObject = stream);
+    const urlParams = new URLSearchParams(window.location.search);
+    const idEmpleado = urlParams.get('id');
+    const sedeUrl = urlParams.get('sede');
 
-        async function registrar(tipo) {
-            if (!idEmpleado || !sedeUrl) {
-                alert("Falta ID o Sede en el enlace.");
-                return;
+    document.getElementById('sede-tag').innerText = "Sede: " + (sedeUrl || "No identificada");
+
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const statusDiv = document.getElementById('status');
+
+    // Iniciar Cámara
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
+        .then(stream => { video.srcObject = stream; })
+        .catch(err => { alert("Error al acceder a la cámara. Por favor permite los permisos."); });
+
+    // Función para calcular distancia en metros (Fórmula Haversine)
+    function obtenerDistancia(lat1, lon1, lat2, lon2) {
+        const R = 6371000; 
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    async function procesar(tipo) {
+        if (!idEmpleado || !sedeUrl) {
+            statusDiv.innerText = "Error: Enlace inválido (Falta ID o Sede)";
+            return;
+        }
+
+        const btnE = document.getElementById('btnE');
+        const btnS = document.getElementById('btnS');
+        btnE.disabled = true; btnS.disabled = true;
+        statusDiv.innerText = "📍 Validando ubicación...";
+
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+            const latUser = pos.coords.latitude;
+            const lngUser = pos.coords.longitude;
+            const centroSede = CONFIG_SEDES[sedeUrl];
+
+            // VALIDACIÓN DE GPS
+            if (centroSede) {
+                const distancia = obtenerDistancia(latUser, lngUser, centroSede.lat, centroSede.lng);
+                if (distancia > RADIO_PERMITIDO) {
+                    statusDiv.innerText = "❌ Estás fuera del rango permitido (" + Math.round(distancia) + "m). Debes estar en la oficina.";
+                    statusDiv.style.color = "red";
+                    btnE.disabled = false; btnS.disabled = false;
+                    return;
+                }
             }
 
-            const btnE = document.getElementById('btnE');
-            const btnS = document.getElementById('btnS');
-            btnE.disabled = true; btnS.disabled = true;
-            status.innerText = "Procesando...";
-
-            // Capturar Foto
+            statusDiv.innerText = "📸 Capturando foto...";
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             canvas.getContext('2d').drawImage(video, 0, 0);
             const fotoBase64 = canvas.toDataURL('image/png');
 
-            // Obtener Ubicación
-            navigator.geolocation.getCurrentPosition(async (pos) => {
-                const datos = {
-                    id: idEmpleado,
-                    sede: sedeUrl,
-                    tipo: tipo,
-                    lat: pos.coords.latitude,
-                    lng: pos.coords.longitude,
-                    foto: fotoBase64
-                };
+            statusDiv.innerText = "☁️ Enviando a la nube...";
 
-                try {
-                    const response = await fetch(WEB_APP_URL, {
-                        method: 'POST',
-                        mode: 'no-cors', // Importante para evitar bloqueos CORS básicos
-                        body: JSON.stringify(datos)
-                    });
-                    
-                    status.innerText = "¡Registro enviado con éxito!";
-                    status.style.color = "green";
-                } catch (error) {
-                    status.innerText = "Error al enviar datos.";
-                    status.style.color = "red";
-                    btnE.disabled = false; btnS.disabled = false;
-                }
-            }, () => {
-                alert("Debes permitir el GPS para marcar asistencia.");
+            const payload = {
+                id: idEmpleado,
+                sede: sedeUrl,
+                tipo: tipo,
+                lat: latUser,
+                lng: lngUser,
+                foto: fotoBase64
+            };
+
+            try {
+                await fetch(WEB_APP_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    body: JSON.stringify(payload)
+                });
+                
+                statusDiv.innerText = "✅ " + tipo + " REGISTRADA CON ÉXITO";
+                statusDiv.style.color = "#28a745";
+                video.style.display = "none";
+            } catch (err) {
+                statusDiv.innerText = "Error al conectar con el servidor.";
                 btnE.disabled = false; btnS.disabled = false;
-            });
-        }
-    </script>
+            }
+
+        }, (err) => {
+            alert("Error de GPS: Por favor activa la ubicación de tu celular.");
+            btnE.disabled = false; btnS.disabled = false;
+        }, { enableHighAccuracy: true });
+    }
+</script>
+
 </body>
 </html>

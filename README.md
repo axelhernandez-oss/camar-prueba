@@ -83,24 +83,24 @@ Consolidación de sedes.
 A continuacion se anexa el codigo para appscript 
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-/**
- * Sistema de Gestión de Asistencia - HH Transportes
- * Backend: Google Apps Script
- */
+    /**
+     * Sistema de Gestión de Asistencia - HH Transportes
+     * Backend: Google Apps Script
+     */
 
-function doPost(e) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var zonaHoraria = "GMT-6"; 
+    function doPost(e) {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+     var zonaHoraria = "GMT-6"; 
 
-  // --- CONFIGURACIÓN DE CARPETAS ---
-  // Reemplazar con los IDs de carpeta de Google Drive para cada sede
-  var CARPETAS_SEDES = {
-    "Sede_A": "ID_CARPETA_1",
+      // --- CONFIGURACIÓN DE CARPETAS ---
+      // Reemplazar con los IDs de carpeta de Google Drive para cada sede
+    var CARPETAS_SEDES = {
+      "Sede_A": "ID_CARPETA_1",
     "Sede_B": "ID_CARPETA_2",
     "Sede_C": "ID_CARPETA_3"
-  };
+        };
 
-  try {
+    try {
     var data = JSON.parse(e.postData.contents);
     var idEmpleado = data.id ? data.id.toString().trim() : "";
     var tipoRegistro = (data.tipo || "ENTRADA").toUpperCase();
@@ -185,7 +185,7 @@ function doPost(e) {
 
     return ContentService.createTextOutput("OK");
 
-  } catch (err) {
+    } catch (err) {
     return ContentService.createTextOutput("ERROR: " + err.toString());
   }
 }
